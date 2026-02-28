@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: roland-converter
+Version: 0.1.0
+Summary: Prepare Sounds From Mars samples for Roland SP-404 MkII
+Requires-Python: >=3.12
+Requires-Dist: click>=8.1
+Requires-Dist: soundfile>=0.12
+Requires-Dist: numpy>=1.26
+Requires-Dist: pyyaml>=6.0
+Requires-Dist: rich>=13.0

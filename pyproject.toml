@@ -1,0 +1,22 @@
+[project]
+name = "roland-converter"
+version = "0.1.0"
+description = "Prepare Sounds From Mars samples for Roland SP-404 MkII"
+requires-python = ">=3.12"
+dependencies = [
+    "click>=8.1",
+    "soundfile>=0.12",
+    "numpy>=1.26",
+    "pyyaml>=6.0",
+    "rich>=13.0",
+]
+
+[project.scripts]
+roland-converter = "roland_converter.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["roland_converter*"]
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"

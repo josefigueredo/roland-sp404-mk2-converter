@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(head:*)",
+      "Bash(find:*)",
+      "Bash(xargs ls -lh)",
+      "Bash(numfmt --to=iec)",
+      "Bash(ls:*)",
+      "WebSearch",
+      "WebFetch(domain:support.roland.com)",
+      "WebFetch(domain:static.roland.com)",
+      "WebFetch(domain:www.kvraudio.com)",
+      "WebFetch(domain:www.elektronauts.com)",
+      "WebFetch(domain:www.perfectcircuit.com)",
+      "WebFetch(domain:sp-forums.com)",
+      "WebFetch(domain:samplesfrommars.com)",
+      "WebFetch(domain:www.manualslib.com)",
+      "WebFetch(domain:www.sweetwater.com)",
+      "WebFetch(domain:files.kraftmusic.com)",
+      "WebFetch(domain:gearspace.com)",
+      "WebFetch(domain:sebpatron.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:www.soundonsound.com)",
+      "WebFetch(domain:blog.waproduction.com)",
+      "WebFetch(domain:en.wikipedia.org)",
+      "WebFetch(domain:manuals.plus)",
+      "Bash(python:*)",
+      "Bash(uv:*)"
+    ]
+  }
+}

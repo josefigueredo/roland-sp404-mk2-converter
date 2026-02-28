@@ -1,0 +1,2 @@
+[console_scripts]
+roland-converter = roland_converter.cli:main

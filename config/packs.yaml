@@ -1,0 +1,185 @@
+source_root: "E:\\Music\\FromMars"
+target_root: "ROLAND/IMPORT"
+
+# Where to find one-shot samples within each pack (tried in order)
+wav_subdir_patterns:
+  - "WAV/01. Individual Hits"
+  - "WAV/Individual Hits"
+  - "WAV/One Shots/Individual Hits"
+  - "WAV/Drums/01. Individual Hits"
+  - "WAV"
+
+# For synth packs: which notes to pick from multi-sampled patches
+synth_representative_notes: ["C2", "C3", "C4"]
+
+# Skip these
+skip_extensions: [".asd", ".nki", ".exs", ".dwp", ".als", ".cfg", ".mp4", ".DS_Store"]
+skip_dirs: ["__MACOSX", "Ableton Live", "Kontakt", "Logic EXS", "FL Studio", "Reason"]
+
+tiers:
+  1:
+    - pack: "808 From Mars"
+      machine_id: "808"
+      type: drum
+    - pack: "909 From Mars"
+      machine_id: "909"
+      type: drum
+    - pack: "MPC60 From Mars"
+      machine_id: "MPC60"
+      type: drum
+    - pack: "Junos From Mars"
+      machine_id: "JUNO"
+      type: synth
+
+  2:
+    - pack: "SP1200 From Mars"
+      machine_id: "SP1200"
+      type: drum
+    - pack: "Mini From Mars"
+      machine_id: "MINI"
+      type: synth
+    - pack: "CR78 From Mars"
+      machine_id: "CR78"
+      type: drum
+    - pack: "DX From Mars"
+      machine_id: "DX"
+      type: synth
+    - pack: "Lindrum From Mars"
+      machine_id: "LINN"
+      type: drum
+
+  3:
+    - pack: "606 From Mars"
+      machine_id: "606"
+      type: drum
+    - pack: "707 From Mars"
+      machine_id: "707"
+      type: drum
+    - pack: "101 From Mars"
+      machine_id: "SH101"
+      type: synth
+    - pack: "DMX From Mars"
+      machine_id: "DMX"
+      type: drum
+    - pack: "2600 From Mars"
+      machine_id: "ARP"
+      type: synth
+    - pack: "VP330 From Mars"
+      machine_id: "VP330"
+      type: synth
+    - pack: "OB From Mars"
+      machine_id: "OB"
+      type: synth
+
+# Map source directory names to output categories
+drum_category_map:
+  "Bass Drum": "KICKS"
+  "Kick": "KICKS"
+  "BD": "KICKS"
+  "Snare Drum": "SNARES"
+  "Snare": "SNARES"
+  "SD": "SNARES"
+  "Tom": "TOMS"
+  "Low Tom": "TOMS"
+  "Mid Tom": "TOMS"
+  "Hi Tom": "TOMS"
+  "Hand Clap": "CLAPS"
+  "Clap": "CLAPS"
+  "CP": "CLAPS"
+  "Rim Shot": "PERCUSSION"
+  "Rim": "PERCUSSION"
+  "RS": "PERCUSSION"
+  "Open HH": "HIHATS/OPEN"
+  "Closed HH": "HIHATS/CLOSED"
+  "Open Hi Hat": "HIHATS/OPEN"
+  "Closed Hi Hat": "HIHATS/CLOSED"
+  "OH": "HIHATS/OPEN"
+  "CH": "HIHATS/CLOSED"
+  "Hi Hat": "HIHATS"
+  "HH": "HIHATS"
+  "Cymbal": "CYMBALS"
+  "Crash": "CYMBALS"
+  "Ride": "CYMBALS"
+  "Cowbell": "PERCUSSION"
+  "Claves": "PERCUSSION"
+  "Maracas": "PERCUSSION"
+  "Conga": "PERCUSSION"
+  "Low Conga": "PERCUSSION"
+  "Mid Conga": "PERCUSSION"
+  "Hi Conga": "PERCUSSION"
+  "Cabasa": "PERCUSSION"
+  "Tambourine": "PERCUSSION"
+  "Shaker": "PERCUSSION"
+  "Percussion": "PERCUSSION"
+  "Sidestick": "PERCUSSION"
+  "Bongo": "PERCUSSION"
+  "Timbale": "PERCUSSION"
+  "Guiro": "PERCUSSION"
+  "Agogo": "PERCUSSION"
+  "Metal Beat": "PERCUSSION"
+  "Accent": "FX"
+
+synth_category_map:
+  "Keys": "KEYS"
+  "Bass": "BASS"
+  "Leads": "LEADS"
+  "Lead": "LEADS"
+  "Pads": "PADS"
+  "Pad": "PADS"
+  "Chords": "CHORDS"
+  "Chord": "CHORDS"
+  "FX": "FX"
+  "Effects": "FX"
+  "Brass": "KEYS"
+  "Brass & Woodwinds": "KEYS"
+  "Strings": "PADS"
+  "Arpeggio": "KEYS"
+  "Organ": "KEYS"
+  "Piano": "KEYS"
+  "Synth": "LEADS"
+
+# Abbreviations for renaming
+abbreviations:
+  "BASS DRUM": "BD"
+  "KICK": "BD"
+  "SNARE DRUM": "SN"
+  "SNARE": "SN"
+  "HI HAT": "HH"
+  "HIHAT": "HH"
+  "CLOSED": "CL"
+  "OPEN": "OP"
+  "TOM": "TM"
+  "CYMBAL": "CYM"
+  "COWBELL": "CB"
+  "RIMSHOT": "RIM"
+  "RIM SHOT": "RIM"
+  "TAMBOURINE": "TAMB"
+  "CABASA": "CAB"
+  "MARACAS": "MAR"
+  "CONGA": "CGA"
+  "CLAVES": "CLV"
+  "PERCUSSION": "PRC"
+  "SHAKER": "SHK"
+  "DECAY": "DK"
+  "SHORT": "SH"
+  "MEDIUM": "MED"
+  "LONG": "LG"
+  "CLEAN": "CLN"
+  "COLOR": "COL"
+  "SATURATED": "SAT"
+  "DISTORTED": "DST"
+  "DIGITAL": "DG"
+  "ANALOG": "AN"
+  "TAPE": "TP"
+  "ORIGINAL": "OG"
+
+# Words to strip from filenames (already in folder path)
+strip_words:
+  - "FROM"
+  - "MARS"
+  - "JUNOS"
+  - "JUNO"
+  - "MPC60"
+  - "SP1200"
+  - "LINDRUM"
+  - "SAMPLES"
