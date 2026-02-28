@@ -16,12 +16,13 @@ class AudioResult:
     original_duration_ms: float
     trimmed_duration_ms: float
     original_size_bytes: int
+    channels: int = 1
+    subtype: str = ""             # e.g. "PCM_16", "PCM_24"
 
 
 def analyze_and_process(
     path: Path,
     silence_threshold_db: float = -60.0,
-    min_duration_ms: float = 100.0,
 ) -> AudioResult:
     """Read, analyze, and process a WAV file. Returns processed audio data.
 
@@ -30,6 +31,9 @@ def analyze_and_process(
     original_size = path.stat().st_size
 
     try:
+        info = sf.info(path)
+        original_channels = info.channels
+        original_subtype = info.subtype
         data, sr = sf.read(path, dtype="float64")
     except Exception as e:
         return AudioResult(
@@ -58,24 +62,14 @@ def analyze_and_process(
             original_duration_ms=original_duration_ms,
             trimmed_duration_ms=0,
             original_size_bytes=original_size,
+            channels=original_channels,
+            subtype=original_subtype,
         )
 
     # Trim leading/trailing silence
     data = _trim_silence(data, sr, silence_threshold_db)
 
     trimmed_duration_ms = (len(data) / sr) * 1000
-
-    # Check minimum duration
-    if trimmed_duration_ms < min_duration_ms:
-        return AudioResult(
-            passed=False,
-            skip_reason="too_short",
-            trimmed_data=None,
-            sample_rate=sr,
-            original_duration_ms=original_duration_ms,
-            trimmed_duration_ms=trimmed_duration_ms,
-            original_size_bytes=original_size,
-        )
 
     return AudioResult(
         passed=True,
@@ -85,6 +79,8 @@ def analyze_and_process(
         original_duration_ms=original_duration_ms,
         trimmed_duration_ms=trimmed_duration_ms,
         original_size_bytes=original_size,
+        channels=original_channels,
+        subtype=original_subtype,
     )
 
 

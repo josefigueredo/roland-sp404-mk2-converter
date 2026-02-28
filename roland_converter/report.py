@@ -108,19 +108,37 @@ def write_audit_log(
             lines.append(f"- {p}")
         lines.append("")
 
-    # File mapping table
+    # File mapping table with audio details
     lines.extend([
         "## File Mapping",
         "",
-        "| Original Path | Output Path | Status |",
-        "|---------------|------------|--------|",
+        "| Original Path | Output Path | Status | Source Format | Original Duration | Trimmed Duration | Silence Removed | Source Size | Output Size |",
+        "|---------------|------------|--------|---------------|-------------------|------------------|-----------------|-------------|-------------|",
     ])
 
     for entry in stats.audit_entries:
         original = entry.original_path.replace("|", "\\|")
         output = entry.output_path.replace("|", "\\|")
         status = entry.status.replace("|", "\\|")
-        lines.append(f"| {original} | {output} | {status} |")
+
+        if entry.sample_rate > 0:
+            src_fmt = f"{entry.subtype} {entry.sample_rate}Hz {entry.channels}ch"
+            orig_dur = f"{entry.original_duration_ms:.0f}ms"
+            trim_dur = f"{entry.trimmed_duration_ms:.0f}ms" if entry.trimmed_duration_ms > 0 else "--"
+            trimmed = f"{entry.trimmed_ms:.0f}ms" if entry.trimmed_ms > 0 else "0ms"
+        else:
+            src_fmt = "--"
+            orig_dur = "--"
+            trim_dur = "--"
+            trimmed = "--"
+
+        src_size = _format_bytes(entry.original_size) if entry.original_size > 0 else "--"
+        out_size = _format_bytes(entry.output_size) if entry.output_size > 0 else "--"
+
+        lines.append(
+            f"| {original} | {output} | {status} "
+            f"| {src_fmt} | {orig_dur} | {trim_dur} | {trimmed} | {src_size} | {out_size} |"
+        )
 
     lines.append("")
 

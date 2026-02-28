@@ -19,6 +19,12 @@ class AuditEntry:
     status: str          # "converted", "skipped: silent", "skipped: too_short", etc.
     original_size: int = 0
     output_size: int = 0
+    sample_rate: int = 0
+    channels: int = 0
+    subtype: str = ""              # e.g. "PCM_16", "PCM_24"
+    original_duration_ms: float = 0
+    trimmed_duration_ms: float = 0
+    trimmed_ms: float = 0         # How much silence was removed
 
 
 @dataclass
@@ -115,15 +121,12 @@ def _process_sample(
         stats.bytes_source += result.original_size_bytes
 
         if not result.passed:
-            _record_skip(stats, source_path, result.skip_reason or "unknown")
+            _record_skip(stats, source_path, result)
             return
 
         stats.files_converted += 1
-        stats.audit_entries.append(AuditEntry(
-            original_path=str(source_path),
-            output_path=str(output_path),
-            status="would convert (dry run)",
-            original_size=result.original_size_bytes,
+        stats.audit_entries.append(_make_audit_entry(
+            str(source_path), str(output_path), "would convert (dry run)", result,
         ))
         return
 
@@ -132,7 +135,7 @@ def _process_sample(
     stats.bytes_source += result.original_size_bytes
 
     if not result.passed:
-        _record_skip(stats, source_path, result.skip_reason or "unknown")
+        _record_skip(stats, source_path, result)
         return
 
     # Convert and write
@@ -142,26 +145,40 @@ def _process_sample(
         )
         stats.files_converted += 1
         stats.bytes_output += output_size
-        stats.audit_entries.append(AuditEntry(
-            original_path=str(source_path),
-            output_path=str(output_path),
-            status="converted",
-            original_size=result.original_size_bytes,
-            output_size=output_size,
-        ))
+        entry = _make_audit_entry(
+            str(source_path), str(output_path), "converted", result,
+        )
+        entry.output_size = output_size
+        stats.audit_entries.append(entry)
     except Exception as e:
         stats.files_skipped_error += 1
         stats.errors.append((str(source_path), str(e)))
-        stats.audit_entries.append(AuditEntry(
-            original_path=str(source_path),
-            output_path="--",
-            status=f"error: {e}",
-            original_size=result.original_size_bytes,
+        stats.audit_entries.append(_make_audit_entry(
+            str(source_path), "--", f"error: {e}", result,
         ))
 
 
-def _record_skip(stats: PipelineStats, source_path: Path, reason: str) -> None:
+def _make_audit_entry(
+    original_path: str, output_path: str, status: str, result,
+) -> AuditEntry:
+    """Create an AuditEntry with audio detail fields from an AudioResult."""
+    return AuditEntry(
+        original_path=original_path,
+        output_path=output_path,
+        status=status,
+        original_size=result.original_size_bytes,
+        sample_rate=result.sample_rate,
+        channels=result.channels,
+        subtype=result.subtype,
+        original_duration_ms=result.original_duration_ms,
+        trimmed_duration_ms=result.trimmed_duration_ms,
+        trimmed_ms=result.original_duration_ms - result.trimmed_duration_ms,
+    )
+
+
+def _record_skip(stats: PipelineStats, source_path: Path, result) -> None:
     """Record a skipped file in stats and audit."""
+    reason = result.skip_reason or "unknown"
     if "silent" in reason:
         stats.files_skipped_silent += 1
     elif "short" in reason:
@@ -170,8 +187,6 @@ def _record_skip(stats: PipelineStats, source_path: Path, reason: str) -> None:
         stats.files_skipped_error += 1
         stats.errors.append((str(source_path), reason))
 
-    stats.audit_entries.append(AuditEntry(
-        original_path=str(source_path),
-        output_path="--",
-        status=f"skipped: {reason}",
+    stats.audit_entries.append(_make_audit_entry(
+        str(source_path), "--", f"skipped: {reason}", result,
     ))
