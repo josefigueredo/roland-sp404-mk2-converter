@@ -1,15 +1,19 @@
 """Main processing pipeline: scan -> categorize -> process -> write."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn, TaskProgressColumn
 
 from .audio import analyze_and_process, convert_and_write
-from .categorizer import CategorizedSample, categorize_all
-from .config import Config, PackConfig
-from .renamer import NameRegistry, generate_name
-from .scanner import scan_all
+from .categorizer import CategorizedSample
+from .renamer import NameRegistry
+
+if TYPE_CHECKING:
+    from .factories.base import SourceFactory
 
 
 @dataclass
@@ -44,8 +48,8 @@ class PipelineStats:
 
 
 def run_pipeline(
-    config: Config,
-    packs: list[PackConfig],
+    factory: SourceFactory,
+    source_path: Path,
     output_root: Path,
     dry_run: bool = False,
     max_per_folder: int = 30,
@@ -57,24 +61,18 @@ def run_pipeline(
     # Phase 1: Scan
     with Progress(
         SpinnerColumn(),
-        TextColumn("[bold blue]Scanning packs..."),
+        TextColumn("[bold blue]Scanning..."),
         transient=True,
     ) as progress:
         progress.add_task("scan", total=None)
-        candidates = scan_all(config, packs)
+        candidates = factory.scan(source_path)
         stats.files_scanned = len(candidates)
-
-    # Check for packs that had no files
-    found_packs = {c.pack_name for c in candidates}
-    for p in packs:
-        if p.pack not in found_packs:
-            stats.packs_not_found.append(p.pack)
 
     if not candidates:
         return stats
 
     # Phase 2: Categorize and curate
-    categorized = categorize_all(candidates, config, max_per_folder)
+    categorized = factory.categorize(candidates, max_per_folder)
     selected = [s for s in categorized if s.is_selected]
     stats.files_selected = len(selected)
     stats.files_skipped_curation = stats.files_scanned - len(selected)
@@ -91,7 +89,7 @@ def run_pipeline(
         for sample in selected:
             progress.update(task, advance=1)
             _process_sample(
-                sample, config, output_root, name_registry, stats, dry_run
+                sample, factory, output_root, name_registry, stats, dry_run
             )
 
     return stats
@@ -99,7 +97,7 @@ def run_pipeline(
 
 def _process_sample(
     sample: CategorizedSample,
-    config: Config,
+    factory: SourceFactory,
     output_root: Path,
     name_registry: NameRegistry,
     stats: PipelineStats,
@@ -110,7 +108,7 @@ def _process_sample(
     source_path = candidate.source_path
 
     # Generate output name
-    name = generate_name(candidate, config)
+    name = factory.generate_name(candidate)
     name = name_registry.register(sample.output_category, name, str(source_path))
     output_rel = Path(sample.output_category) / f"{name}.WAV"
     output_path = output_root / output_rel

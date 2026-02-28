@@ -7,9 +7,10 @@ from rich.console import Console
 from rich.table import Table
 
 from .config import Config, load_config, get_packs_for_tiers, get_packs_by_name
+from .factories import FromMarsFactory, GenericFactory
 from .pipeline import run_pipeline
+from .renamer import NameRegistry
 from .report import print_summary, write_audit_log
-from .scanner import scan_all
 
 # Default config path (relative to package)
 _DEFAULT_CONFIG = Path(__file__).parent.parent / "config" / "packs.yaml"
@@ -39,7 +40,7 @@ def main(ctx, config):
 @click.option("--max-per-folder", default=30, show_default=True, help="Max samples per leaf folder")
 @click.pass_context
 def convert(ctx, tiers, packs, target, dry_run, max_per_folder):
-    """Convert and organize samples for SP-404 MkII import."""
+    """Convert and organize Sounds From Mars samples for SP-404 MkII import."""
     config: Config = ctx.obj["config"]
     console: Console = ctx.obj["console"]
 
@@ -71,10 +72,11 @@ def convert(ctx, tiers, packs, target, dry_run, max_per_folder):
         console.print(f"  [dim]Tier {p.tier}[/dim] {p.pack} ({p.machine_id}, {p.type})")
     console.print()
 
-    # Run pipeline
+    # Run pipeline with From Mars factory
+    factory = FromMarsFactory(config=config, packs=selected_packs)
     stats = run_pipeline(
-        config=config,
-        packs=selected_packs,
+        factory=factory,
+        source_path=config.source_root,
         output_root=output_root,
         dry_run=dry_run,
         max_per_folder=max_per_folder,
@@ -85,8 +87,52 @@ def convert(ctx, tiers, packs, target, dry_run, max_per_folder):
 
     # Write audit log
     config_summary = (
+        f"- Factory: from-mars\n"
         f"- Tiers: {tiers}\n"
         f"- Packs: {', '.join(p.pack for p in selected_packs)}\n"
+        f"- Max per folder: {max_per_folder}\n"
+        f"- Dry run: {dry_run}"
+    )
+    audit_path = write_audit_log(stats, output_root, config_summary)
+    console.print(f"[dim]Audit log: {audit_path}[/dim]")
+
+
+@main.command("convert-dir")
+@click.argument("source_dir", type=click.Path(exists=True))
+@click.option("--target", "-o", type=click.Path(), required=True, help="Output root directory")
+@click.option("--dry-run", "-n", is_flag=True, help="Preview without writing files")
+@click.option("--max-per-folder", default=30, show_default=True, help="Max samples per leaf folder")
+@click.pass_context
+def convert_dir(ctx, source_dir, target, dry_run, max_per_folder):
+    """Convert any WAV folder for SP-404 MkII import (generic mode)."""
+    console: Console = ctx.obj["console"]
+    source_path = Path(source_dir)
+    output_root = Path(target)
+
+    console.print(f"[bold]Source:[/bold] {source_path}")
+    console.print(f"[bold]Output:[/bold] {output_root}")
+    console.print(f"[bold]Mode:[/bold] Generic (keyword detection)")
+    if dry_run:
+        console.print("[yellow]DRY RUN - no files will be written[/yellow]")
+    console.print()
+
+    # Run pipeline with generic factory
+    factory = GenericFactory()
+    stats = run_pipeline(
+        factory=factory,
+        source_path=source_path,
+        output_root=output_root,
+        dry_run=dry_run,
+        max_per_folder=max_per_folder,
+    )
+
+    # Print summary
+    print_summary(stats, console)
+
+    # Write audit log
+    config_summary = (
+        f"- Factory: generic\n"
+        f"- Source: {source_path}\n"
         f"- Max per folder: {max_per_folder}\n"
         f"- Dry run: {dry_run}"
     )
@@ -98,7 +144,7 @@ def convert(ctx, tiers, packs, target, dry_run, max_per_folder):
 @click.option("--tiers", "-t", default="1,2,3", help='Tiers to show: "1", "1,2", "1,2,3"')
 @click.pass_context
 def list_packs(ctx, tiers):
-    """Show available packs and their tier assignments."""
+    """Show available Sounds From Mars packs and their tier assignments."""
     config: Config = ctx.obj["config"]
     console: Console = ctx.obj["console"]
 
@@ -124,7 +170,7 @@ def list_packs(ctx, tiers):
 @click.argument("pack_name")
 @click.pass_context
 def preview(ctx, pack_name):
-    """Preview what files would be selected from a specific pack."""
+    """Preview what files would be selected from a Sounds From Mars pack."""
     config: Config = ctx.obj["config"]
     console: Console = ctx.obj["console"]
 
@@ -137,19 +183,17 @@ def preview(ctx, pack_name):
     console.print(f"[bold]Scanning:[/bold] {pack.pack} ({pack.machine_id}, {pack.type})")
     console.print()
 
-    candidates = scan_all(config, [pack])
+    factory = FromMarsFactory(config=config, packs=[pack])
+    candidates = factory.scan(config.source_root)
     if not candidates:
         console.print("[yellow]No WAV files found.[/yellow]")
         return
 
     console.print(f"Found {len(candidates)} WAV files")
 
-    # Show category distribution
     from collections import Counter
-    from .categorizer import categorize_all
-    from .renamer import generate_name, NameRegistry
 
-    categorized = categorize_all(candidates, config)
+    categorized = factory.categorize(candidates)
     selected = [s for s in categorized if s.is_selected]
 
     cat_counts = Counter(s.output_category for s in selected)
@@ -174,7 +218,69 @@ def preview(ctx, pack_name):
     table2.add_column("Category")
 
     for s in selected[:20]:
-        name = generate_name(s.candidate, config)
+        name = factory.generate_name(s.candidate)
+        name = registry.register(s.output_category, name, str(s.candidate.source_path))
+        table2.add_row(
+            s.candidate.filename,
+            f"{name}.WAV",
+            s.output_category,
+        )
+
+    console.print(table2)
+
+    if len(selected) > 20:
+        console.print(f"[dim]... and {len(selected) - 20} more[/dim]")
+
+
+@main.command("preview-dir")
+@click.argument("source_dir", type=click.Path(exists=True))
+@click.option("--max-per-folder", default=30, show_default=True, help="Max samples per leaf folder")
+@click.pass_context
+def preview_dir(ctx, source_dir, max_per_folder):
+    """Preview what files would be selected from any WAV folder (generic mode)."""
+    console: Console = ctx.obj["console"]
+    source_path = Path(source_dir)
+
+    console.print(f"[bold]Scanning:[/bold] {source_path}")
+    console.print(f"[bold]Mode:[/bold] Generic (keyword detection)")
+    console.print()
+
+    factory = GenericFactory()
+    candidates = factory.scan(source_path)
+    if not candidates:
+        console.print("[yellow]No WAV files found.[/yellow]")
+        return
+
+    console.print(f"Found {len(candidates)} WAV files")
+
+    from collections import Counter
+
+    categorized = factory.categorize(candidates, max_per_folder)
+    selected = [s for s in categorized if s.is_selected]
+
+    cat_counts = Counter(s.output_category for s in selected)
+    console.print(f"Selected {len(selected)} after curation (max {max_per_folder}/folder)")
+    console.print()
+
+    table = Table(title="Output Categories")
+    table.add_column("Category")
+    table.add_column("Count", justify="right")
+
+    for cat, count in sorted(cat_counts.items()):
+        table.add_row(cat, str(count))
+
+    console.print(table)
+    console.print()
+
+    # Show sample name mappings
+    registry = NameRegistry()
+    table2 = Table(title="Sample Name Mappings (first 20)")
+    table2.add_column("Original", style="dim")
+    table2.add_column("Output Name", style="cyan")
+    table2.add_column("Category")
+
+    for s in selected[:20]:
+        name = factory.generate_name(s.candidate)
         name = registry.register(s.output_category, name, str(s.candidate.source_path))
         table2.add_row(
             s.candidate.filename,
