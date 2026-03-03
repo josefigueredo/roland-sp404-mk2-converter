@@ -7,7 +7,7 @@ from rich.console import Console
 from rich.table import Table
 
 from .config import Config, load_config, get_packs_for_tiers, get_packs_by_name
-from .factories import FromMarsFactory, GenericFactory
+from .factories import FromMarsFactory, GenericFactory, MelodyFactory
 from .pipeline import run_pipeline
 from .renamer import NameRegistry
 from .report import print_summary, write_audit_log
@@ -306,6 +306,62 @@ def preview_dir(ctx, source_dir, max_per_folder, group_by):
 
     if len(selected) > 20:
         console.print(f"[dim]... and {len(selected) - 20} more[/dim]")
+
+
+@main.command("convert-melody")
+@click.argument("source_dir", type=click.Path(exists=True))
+@click.option("--brand", "-b", required=True, help="Brand folder name (e.g., CYMATICS)")
+@click.option("--name", "-N", "pack_name", default=None, help="Pack name override (default: derived from folder)")
+@click.option("--target", "-o", type=click.Path(), required=True, help="Output root directory")
+@click.option("--dry-run", "-n", is_flag=True, help="Preview without writing files")
+@click.option("--max-per-folder", default=200, show_default=True, help="Max samples per output folder")
+@click.pass_context
+def convert_melody(ctx, source_dir, brand, pack_name, target, dry_run, max_per_folder):
+    """Convert melody loops / musical content for SP-404 MkII import.
+
+    Unlike convert-dir, this mode keeps stereo and does not trim silence.
+    Files are placed under BRAND/PACK (e.g., CYMATICS/SOLACE).
+    """
+    import re
+    console: Console = ctx.obj["console"]
+    source_path = Path(source_dir)
+    output_root = Path(target)
+
+    # Derive pack name from folder if not provided
+    if not pack_name:
+        raw = source_path.name
+        raw = re.sub(r"^\d+[\s.\-]*", "", raw)  # strip leading numbers
+        raw = re.sub(r"[\s_]*(Bundle|Pack|Kit|Samples?|Collection)$", "", raw, flags=re.I)
+        pack_name = raw.strip()
+
+    console.print(f"[bold]Source:[/bold] {source_path}")
+    console.print(f"[bold]Output:[/bold] {output_root}")
+    console.print(f"[bold]Mode:[/bold] Melody ({brand.upper()}/{pack_name.upper()})")
+    if dry_run:
+        console.print("[yellow]DRY RUN - no files will be written[/yellow]")
+    console.print()
+
+    factory = MelodyFactory(brand=brand, pack_name=pack_name)
+    stats = run_pipeline(
+        factory=factory,
+        source_path=source_path,
+        output_root=output_root,
+        dry_run=dry_run,
+        max_per_folder=max_per_folder,
+    )
+
+    print_summary(stats, console)
+
+    config_summary = (
+        f"- Factory: melody\n"
+        f"- Source: {source_path}\n"
+        f"- Brand: {brand.upper()}\n"
+        f"- Pack: {pack_name.upper()}\n"
+        f"- Max per folder: {max_per_folder}\n"
+        f"- Dry run: {dry_run}"
+    )
+    audit_path = write_audit_log(stats, output_root, config_summary)
+    console.print(f"[dim]Audit log: {audit_path}[/dim]")
 
 
 @main.command()

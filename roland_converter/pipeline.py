@@ -113,9 +113,11 @@ def _process_sample(
     output_rel = Path(sample.output_category) / f"{name}.WAV"
     output_path = output_root / output_rel
 
+    audio_kw = getattr(factory, "audio_kwargs", {})
+
     if dry_run:
         # In dry run, still analyze audio to report on it
-        result = analyze_and_process(source_path)
+        result = analyze_and_process(source_path, **audio_kw)
         stats.bytes_source += result.original_size_bytes
 
         if not result.passed:
@@ -129,7 +131,7 @@ def _process_sample(
         return
 
     # Full processing
-    result = analyze_and_process(source_path)
+    result = analyze_and_process(source_path, **audio_kw)
     stats.bytes_source += result.original_size_bytes
 
     if not result.passed:

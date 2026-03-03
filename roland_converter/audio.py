@@ -23,10 +23,16 @@ class AudioResult:
 def analyze_and_process(
     path: Path,
     silence_threshold_db: float = -60.0,
+    trim: bool = True,
+    keep_stereo: bool = False,
 ) -> AudioResult:
     """Read, analyze, and process a WAV file. Returns processed audio data.
 
     IMPORTANT: This function only READS the source file. It never writes to it.
+
+    Args:
+        trim: If True, trim leading/trailing silence (default for one-shots).
+        keep_stereo: If True, preserve stereo channels (useful for melodies/loops).
     """
     original_size = path.stat().st_size
 
@@ -46,14 +52,14 @@ def analyze_and_process(
             original_size_bytes=original_size,
         )
 
-    original_duration_ms = (len(data) / sr) * 1000
+    n_frames = data.shape[0] if data.ndim == 2 else len(data)
+    original_duration_ms = (n_frames / sr) * 1000
 
-    # Convert stereo to mono
-    if data.ndim == 2:
-        data = data.mean(axis=1)
+    # For silence detection, use a mono mix regardless of output format
+    mono = data.mean(axis=1) if data.ndim == 2 else data
 
     # Check if entirely silent
-    if _is_silent(data, silence_threshold_db):
+    if _is_silent(mono, silence_threshold_db):
         return AudioResult(
             passed=False,
             skip_reason="silent",
@@ -66,10 +72,16 @@ def analyze_and_process(
             subtype=original_subtype,
         )
 
-    # Trim leading/trailing silence
-    data = _trim_silence(data, sr, silence_threshold_db)
+    # Convert stereo to mono unless keep_stereo is requested
+    if data.ndim == 2 and not keep_stereo:
+        data = mono
 
-    trimmed_duration_ms = (len(data) / sr) * 1000
+    # Trim leading/trailing silence
+    if trim:
+        data = _trim_silence(data, sr, silence_threshold_db)
+
+    n_frames_out = data.shape[0] if data.ndim == 2 else len(data)
+    trimmed_duration_ms = (n_frames_out / sr) * 1000
 
     return AudioResult(
         passed=True,
@@ -123,24 +135,38 @@ def _trim_silence(
     threshold_linear = 10 ** (threshold_db / 20.0)
     padding_samples = int(sr * padding_ms / 1000)
 
-    above = np.where(np.abs(data) > threshold_linear)[0]
+    # Use mono mix for threshold detection on stereo data
+    mono = data.mean(axis=1) if data.ndim == 2 else data
+    above = np.where(np.abs(mono) > threshold_linear)[0]
     if len(above) == 0:
         return data  # Will be caught by silence detection
 
+    n_frames = data.shape[0] if data.ndim == 2 else len(data)
     start = max(0, above[0] - padding_samples)
-    end = min(len(data), above[-1] + 1 + padding_samples)
+    end = min(n_frames, above[-1] + 1 + padding_samples)
     return data[start:end]
 
 
 def _resample(data: np.ndarray, source_sr: int, target_sr: int) -> np.ndarray:
     """Resample audio using linear interpolation.
 
-    Adequate for short one-shot samples (drum hits, synth notes).
+    Handles both mono (1D) and stereo (2D: frames x channels) arrays.
     """
     if source_sr == target_sr:
         return data
 
     ratio = target_sr / source_sr
+
+    if data.ndim == 2:
+        n_frames = data.shape[0]
+        n_out = int(n_frames * ratio)
+        indices = np.linspace(0, n_frames - 1, n_out)
+        x = np.arange(n_frames)
+        return np.column_stack([
+            np.interp(indices, x, data[:, ch])
+            for ch in range(data.shape[1])
+        ])
+
     n_samples = int(len(data) * ratio)
     indices = np.linspace(0, len(data) - 1, n_samples)
     return np.interp(indices, np.arange(len(data)), data)
