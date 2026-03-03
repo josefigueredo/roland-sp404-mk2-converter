@@ -3,9 +3,23 @@
 import re
 from collections import defaultdict
 from dataclasses import dataclass
+from typing import Literal
 
 from .config import Config
 from .scanner import SampleCandidate
+
+GroupBy = Literal["type", "source"]
+
+
+def build_output_category(type_part: str, source_part: str, group_by: GroupBy = "type") -> str:
+    """Build output_category string based on grouping mode.
+
+    'type' mode:   TYPE/SOURCE  -> KICKS/808
+    'source' mode: SOURCE/TYPE  -> 808/KICKS
+    """
+    if group_by == "source":
+        return f"{source_part}/{type_part}"
+    return f"{type_part}/{source_part}"
 
 
 @dataclass
@@ -20,20 +34,20 @@ class CategorizedSample:
 _TRAILING_NUM_RE = re.compile(r"[_\s](\d{1,2})$")
 
 
-def categorize(candidate: SampleCandidate, config: Config) -> CategorizedSample:
+def categorize(candidate: SampleCandidate, config: Config, group_by: GroupBy = "type") -> CategorizedSample:
     """Assign output category and priority to a sample candidate."""
     if candidate.pack_type == "drum":
-        return _categorize_drum(candidate, config)
+        return _categorize_drum(candidate, config, group_by)
     else:
-        return _categorize_synth(candidate, config)
+        return _categorize_synth(candidate, config, group_by)
 
 
-def _categorize_drum(candidate: SampleCandidate, config: Config) -> CategorizedSample:
+def _categorize_drum(candidate: SampleCandidate, config: Config, group_by: GroupBy = "type") -> CategorizedSample:
     """Categorize a drum sample based on its path-derived category hint."""
     category = _lookup_category(
         candidate.category_hint, config.drum_category_map, default="PERCUSSION"
     )
-    output_category = f"{category}/{candidate.machine_id}"
+    output_category = build_output_category(category, candidate.machine_id, group_by)
 
     # Priority: prefer Clean/Original over Color/Saturated
     priority = _drum_priority(candidate.sub_category_hint)
@@ -45,12 +59,12 @@ def _categorize_drum(candidate: SampleCandidate, config: Config) -> CategorizedS
     )
 
 
-def _categorize_synth(candidate: SampleCandidate, config: Config) -> CategorizedSample:
+def _categorize_synth(candidate: SampleCandidate, config: Config, group_by: GroupBy = "type") -> CategorizedSample:
     """Categorize a synth sample based on its path-derived category hint."""
     category = _lookup_category(
         candidate.category_hint, config.synth_category_map, default="KEYS"
     )
-    output_category = f"{category}/{candidate.machine_id}"
+    output_category = build_output_category(category, candidate.machine_id, group_by)
 
     # Priority: representative notes (C2/C3/C4) get higher priority
     priority = _synth_priority(candidate, config.synth_representative_notes)
@@ -194,8 +208,9 @@ def categorize_all(
     candidates: list[SampleCandidate],
     config: Config,
     max_per_folder: int = 30,
+    group_by: GroupBy = "type",
 ) -> list[CategorizedSample]:
     """Categorize all candidates and curate."""
-    categorized = [categorize(c, config) for c in candidates]
+    categorized = [categorize(c, config, group_by) for c in candidates]
     curate(categorized, max_per_folder)
     return categorized

@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+from ..categorizer import GroupBy
 from .base import SourceFactory
 from .from_mars import FromMarsFactory
 from .generic import GenericFactory
@@ -17,9 +18,11 @@ def get_factory(name: str, **kwargs) -> SourceFactory:
         **kwargs: Factory-specific arguments:
             - from-mars: config (Config), packs (list[PackConfig])
             - generic: (none required)
+            - group_by: "type" (default) or "source" (all factories)
     """
+    group_by: GroupBy = kwargs.pop("group_by", "type")
     if name == "from-mars":
-        return FromMarsFactory(config=kwargs["config"], packs=kwargs["packs"])
+        return FromMarsFactory(config=kwargs["config"], packs=kwargs["packs"], group_by=group_by)
     elif name == "generic":
-        return GenericFactory()
+        return GenericFactory(group_by=group_by)
     raise ValueError(f"Unknown factory: {name!r}. Available: from-mars, generic")

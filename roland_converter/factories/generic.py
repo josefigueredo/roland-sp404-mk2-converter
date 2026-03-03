@@ -5,7 +5,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from ..scanner import SampleCandidate
-from ..categorizer import CategorizedSample
+from ..categorizer import CategorizedSample, GroupBy, build_output_category
 
 # Directories to skip when scanning
 _SKIP_DIRS = {
@@ -71,6 +71,9 @@ _TRAILING_NUM_RE = re.compile(r"[_\s](\d{1,2})$")
 class GenericFactory:
     """Source factory for any WAV folder."""
 
+    def __init__(self, group_by: GroupBy = "type"):
+        self.group_by = group_by
+
     def scan(self, source_path: Path) -> list[SampleCandidate]:
         """Recursively find all WAV files and detect instrument category from filenames."""
         candidates = []
@@ -107,7 +110,7 @@ class GenericFactory:
         for c in candidates:
             search_text = f"{c.filename} {c.category_hint}"
             _, output_folder = _detect_category(search_text)
-            output_category = f"{output_folder}/{c.machine_id}"
+            output_category = build_output_category(output_folder, c.machine_id, self.group_by)
 
             categorized.append(CategorizedSample(
                 candidate=c,

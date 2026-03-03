@@ -15,6 +15,14 @@ from .report import print_summary, write_audit_log
 # Default config path (relative to package)
 _DEFAULT_CONFIG = Path(__file__).parent.parent / "config" / "packs.yaml"
 
+_group_by_option = click.option(
+    "--group-by", "-g",
+    type=click.Choice(["type", "source"], case_sensitive=False),
+    default="type",
+    show_default=True,
+    help='Folder hierarchy: "type" = TYPE/SOURCE (default), "source" = SOURCE/TYPE',
+)
+
 
 @click.group()
 @click.option(
@@ -38,8 +46,9 @@ def main(ctx, config):
 @click.option("--target", "-o", type=click.Path(), default=None, help="Output root directory")
 @click.option("--dry-run", "-n", is_flag=True, help="Preview without writing files")
 @click.option("--max-per-folder", default=30, show_default=True, help="Max samples per leaf folder")
+@_group_by_option
 @click.pass_context
-def convert(ctx, tiers, packs, target, dry_run, max_per_folder):
+def convert(ctx, tiers, packs, target, dry_run, max_per_folder, group_by):
     """Convert and organize Sounds From Mars samples for SP-404 MkII import."""
     config: Config = ctx.obj["config"]
     console: Console = ctx.obj["console"]
@@ -73,7 +82,7 @@ def convert(ctx, tiers, packs, target, dry_run, max_per_folder):
     console.print()
 
     # Run pipeline with From Mars factory
-    factory = FromMarsFactory(config=config, packs=selected_packs)
+    factory = FromMarsFactory(config=config, packs=selected_packs, group_by=group_by)
     stats = run_pipeline(
         factory=factory,
         source_path=config.source_root,
@@ -90,6 +99,7 @@ def convert(ctx, tiers, packs, target, dry_run, max_per_folder):
         f"- Factory: from-mars\n"
         f"- Tiers: {tiers}\n"
         f"- Packs: {', '.join(p.pack for p in selected_packs)}\n"
+        f"- Group by: {group_by}\n"
         f"- Max per folder: {max_per_folder}\n"
         f"- Dry run: {dry_run}"
     )
@@ -102,8 +112,9 @@ def convert(ctx, tiers, packs, target, dry_run, max_per_folder):
 @click.option("--target", "-o", type=click.Path(), required=True, help="Output root directory")
 @click.option("--dry-run", "-n", is_flag=True, help="Preview without writing files")
 @click.option("--max-per-folder", default=30, show_default=True, help="Max samples per leaf folder")
+@_group_by_option
 @click.pass_context
-def convert_dir(ctx, source_dir, target, dry_run, max_per_folder):
+def convert_dir(ctx, source_dir, target, dry_run, max_per_folder, group_by):
     """Convert any WAV folder for SP-404 MkII import (generic mode)."""
     console: Console = ctx.obj["console"]
     source_path = Path(source_dir)
@@ -117,7 +128,7 @@ def convert_dir(ctx, source_dir, target, dry_run, max_per_folder):
     console.print()
 
     # Run pipeline with generic factory
-    factory = GenericFactory()
+    factory = GenericFactory(group_by=group_by)
     stats = run_pipeline(
         factory=factory,
         source_path=source_path,
@@ -133,6 +144,7 @@ def convert_dir(ctx, source_dir, target, dry_run, max_per_folder):
     config_summary = (
         f"- Factory: generic\n"
         f"- Source: {source_path}\n"
+        f"- Group by: {group_by}\n"
         f"- Max per folder: {max_per_folder}\n"
         f"- Dry run: {dry_run}"
     )
@@ -168,8 +180,9 @@ def list_packs(ctx, tiers):
 
 @main.command()
 @click.argument("pack_name")
+@_group_by_option
 @click.pass_context
-def preview(ctx, pack_name):
+def preview(ctx, pack_name, group_by):
     """Preview what files would be selected from a Sounds From Mars pack."""
     config: Config = ctx.obj["config"]
     console: Console = ctx.obj["console"]
@@ -183,7 +196,7 @@ def preview(ctx, pack_name):
     console.print(f"[bold]Scanning:[/bold] {pack.pack} ({pack.machine_id}, {pack.type})")
     console.print()
 
-    factory = FromMarsFactory(config=config, packs=[pack])
+    factory = FromMarsFactory(config=config, packs=[pack], group_by=group_by)
     candidates = factory.scan(config.source_root)
     if not candidates:
         console.print("[yellow]No WAV files found.[/yellow]")
@@ -235,8 +248,9 @@ def preview(ctx, pack_name):
 @main.command("preview-dir")
 @click.argument("source_dir", type=click.Path(exists=True))
 @click.option("--max-per-folder", default=30, show_default=True, help="Max samples per leaf folder")
+@_group_by_option
 @click.pass_context
-def preview_dir(ctx, source_dir, max_per_folder):
+def preview_dir(ctx, source_dir, max_per_folder, group_by):
     """Preview what files would be selected from any WAV folder (generic mode)."""
     console: Console = ctx.obj["console"]
     source_path = Path(source_dir)
@@ -245,7 +259,7 @@ def preview_dir(ctx, source_dir, max_per_folder):
     console.print(f"[bold]Mode:[/bold] Generic (keyword detection)")
     console.print()
 
-    factory = GenericFactory()
+    factory = GenericFactory(group_by=group_by)
     candidates = factory.scan(source_path)
     if not candidates:
         console.print("[yellow]No WAV files found.[/yellow]")
