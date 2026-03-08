@@ -1,0 +1,45 @@
+# RolandConverter Presets
+# Usage: uv run roland-converter run <preset> [source] -o <output> [--dry-run]
+# Override any setting: --max-per-folder 50, --brand CYMATICS, etc.
+
+drums-tier1:
+  description: "From Mars core kits (808, 909, MPC60, Junos)"
+  factory: from-mars
+  tiers: "1"
+  group_by: type
+  max_per_folder: 30
+
+drums-all:
+  description: "From Mars all tiers (808, 909, MPC60, Junos, CR-78, LinnDrum, ...)"
+  factory: from-mars
+  tiers: "1,2,3"
+  group_by: type
+  max_per_folder: 30
+
+drums-generic:
+  description: "Any WAV drum folder (keyword detection)"
+  factory: generic
+  group_by: type
+  max_per_folder: 30
+
+melody:
+  description: "Loops/ambience - stereo, no silence trim"
+  factory: melody
+  max_per_folder: 200
+
+melody-analyze:
+  description: "Loops/ambience + BPM/key detection appended to filename"
+  factory: melody
+  max_per_folder: 200
+  analyze: true
+  bpm_threshold: 0.4
+  key_threshold: 0.6
+
+generic-analyze:
+  description: "Any WAV folder + BPM/key detection"
+  factory: generic
+  group_by: type
+  max_per_folder: 30
+  analyze: true
+  bpm_threshold: 0.4
+  key_threshold: 0.6

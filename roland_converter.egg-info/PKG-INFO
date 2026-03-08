@@ -8,3 +8,5 @@ Requires-Dist: soundfile>=0.12
 Requires-Dist: numpy>=1.26
 Requires-Dist: pyyaml>=6.0
 Requires-Dist: rich>=13.0
+Requires-Dist: librosa>=0.10
+Requires-Dist: Pillow>=10.0

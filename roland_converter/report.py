@@ -108,12 +108,36 @@ def write_audit_log(
             lines.append(f"- {p}")
         lines.append("")
 
+    # Analysis summary (if any entries have BPM/key data)
+    has_analysis = any(e.bpm is not None or e.key is not None for e in stats.audit_entries)
+    if has_analysis:
+        bpm_entries = [e for e in stats.audit_entries if e.bpm is not None]
+        key_entries = [e for e in stats.audit_entries if e.key is not None]
+        lines.extend([
+            "## Analysis Summary",
+            "",
+            f"- Files with BPM detected: {len(bpm_entries)}",
+            f"- Files with key detected: {len(key_entries)}",
+        ])
+        if bpm_entries:
+            bpms = [e.bpm for e in bpm_entries]
+            lines.append(f"- BPM range: {min(bpms)}-{max(bpms)}")
+        if key_entries:
+            from collections import Counter
+            key_counts = Counter(
+                f"{e.key}{'m' if e.key_mode == 'min' else ''}" for e in key_entries
+            )
+            top_keys = key_counts.most_common(5)
+            keys_str = ", ".join(f"{k} ({c})" for k, c in top_keys)
+            lines.append(f"- Most common keys: {keys_str}")
+        lines.append("")
+
     # File mapping table with audio details
     lines.extend([
         "## File Mapping",
         "",
-        "| Original Path | Output Path | Status | Source Format | Original Duration | Trimmed Duration | Silence Removed | Source Size | Output Size |",
-        "|---------------|------------|--------|---------------|-------------------|------------------|-----------------|-------------|-------------|",
+        "| Original Path | Output Path | Status | Source Format | Original Duration | Trimmed Duration | Silence Removed | Source Size | Output Size | BPM | Key | BPM Conf | Key Conf |",
+        "|---------------|------------|--------|---------------|-------------------|------------------|-----------------|-------------|-------------|-----|-----|----------|----------|",
     ])
 
     for entry in stats.audit_entries:
@@ -135,9 +159,15 @@ def write_audit_log(
         src_size = _format_bytes(entry.original_size) if entry.original_size > 0 else "--"
         out_size = _format_bytes(entry.output_size) if entry.output_size > 0 else "--"
 
+        bpm_str = str(entry.bpm) if entry.bpm is not None else "--"
+        key_str = f"{entry.key}{'m' if entry.key_mode == 'min' else ''}" if entry.key is not None else "--"
+        bpm_conf = f"{entry.bpm_confidence:.2f}" if entry.bpm is not None else "--"
+        key_conf = f"{entry.key_confidence:.2f}" if entry.key is not None else "--"
+
         lines.append(
             f"| {original} | {output} | {status} "
-            f"| {src_fmt} | {orig_dur} | {trim_dur} | {trimmed} | {src_size} | {out_size} |"
+            f"| {src_fmt} | {orig_dur} | {trim_dur} | {trimmed} | {src_size} | {out_size} "
+            f"| {bpm_str} | {key_str} | {bpm_conf} | {key_conf} |"
         )
 
     lines.append("")

@@ -65,6 +65,43 @@ def get_packs_for_tiers(config: Config, tiers: list[int]) -> list[PackConfig]:
     return [p for p in config.packs if p.tier in tiers]
 
 
+@dataclass
+class Preset:
+    name: str
+    description: str
+    factory: str              # "from-mars", "generic", "melody"
+    tiers: str = ""
+    group_by: str = "type"
+    brand: str = ""
+    max_per_folder: int = 30
+    analyze: bool = False
+    bpm_threshold: float = 0.4
+    key_threshold: float = 0.6
+
+
+def load_presets(presets_path: str | Path) -> dict[str, Preset]:
+    """Load named presets from YAML file."""
+    presets_path = Path(presets_path)
+    with open(presets_path, encoding="utf-8") as f:
+        raw = yaml.safe_load(f)
+
+    presets = {}
+    for name, values in raw.items():
+        presets[name] = Preset(
+            name=name,
+            description=values.get("description", ""),
+            factory=values["factory"],
+            tiers=str(values.get("tiers", "")),
+            group_by=values.get("group_by", "type"),
+            brand=values.get("brand", ""),
+            max_per_folder=values.get("max_per_folder", 30),
+            analyze=values.get("analyze", False),
+            bpm_threshold=values.get("bpm_threshold", 0.4),
+            key_threshold=values.get("key_threshold", 0.6),
+        )
+    return presets
+
+
 def get_packs_by_name(config: Config, names: list[str]) -> list[PackConfig]:
     """Filter packs by name (case-insensitive partial match)."""
     results = []

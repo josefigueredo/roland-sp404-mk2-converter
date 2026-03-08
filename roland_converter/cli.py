@@ -6,14 +6,35 @@ import click
 from rich.console import Console
 from rich.table import Table
 
-from .config import Config, load_config, get_packs_for_tiers, get_packs_by_name
+from .config import Config, Preset, load_config, load_presets, get_packs_for_tiers, get_packs_by_name
 from .factories import FromMarsFactory, GenericFactory, MelodyFactory
 from .pipeline import run_pipeline
 from .renamer import NameRegistry
 from .report import print_summary, write_audit_log
 
-# Default config path (relative to package)
+# Default config paths (relative to package)
 _DEFAULT_CONFIG = Path(__file__).parent.parent / "config" / "packs.yaml"
+_DEFAULT_PRESETS = Path(__file__).parent.parent / "config" / "presets.yaml"
+
+_analyze_option = click.option(
+    "--analyze/--no-analyze",
+    default=False,
+    help="Enable BPM and key detection (requires librosa)",
+)
+_bpm_threshold_option = click.option(
+    "--bpm-threshold",
+    type=float,
+    default=0.4,
+    show_default=True,
+    help="Min BPM detection confidence (0.0-1.0)",
+)
+_key_threshold_option = click.option(
+    "--key-threshold",
+    type=float,
+    default=0.6,
+    show_default=True,
+    help="Min key detection confidence (0.0-1.0)",
+)
 
 _group_by_option = click.option(
     "--group-by", "-g",
@@ -47,8 +68,11 @@ def main(ctx, config):
 @click.option("--dry-run", "-n", is_flag=True, help="Preview without writing files")
 @click.option("--max-per-folder", default=30, show_default=True, help="Max samples per leaf folder")
 @_group_by_option
+@_analyze_option
+@_bpm_threshold_option
+@_key_threshold_option
 @click.pass_context
-def convert(ctx, tiers, packs, target, dry_run, max_per_folder, group_by):
+def convert(ctx, tiers, packs, target, dry_run, max_per_folder, group_by, analyze, bpm_threshold, key_threshold):
     """Convert and organize Sounds From Mars samples for SP-404 MkII import."""
     config: Config = ctx.obj["config"]
     console: Console = ctx.obj["console"]
@@ -89,6 +113,9 @@ def convert(ctx, tiers, packs, target, dry_run, max_per_folder, group_by):
         output_root=output_root,
         dry_run=dry_run,
         max_per_folder=max_per_folder,
+        analyze=analyze,
+        bpm_threshold=bpm_threshold,
+        key_threshold=key_threshold,
     )
 
     # Print summary
@@ -101,6 +128,7 @@ def convert(ctx, tiers, packs, target, dry_run, max_per_folder, group_by):
         f"- Packs: {', '.join(p.pack for p in selected_packs)}\n"
         f"- Group by: {group_by}\n"
         f"- Max per folder: {max_per_folder}\n"
+        f"- Analyze: {analyze}\n"
         f"- Dry run: {dry_run}"
     )
     audit_path = write_audit_log(stats, output_root, config_summary)
@@ -113,8 +141,11 @@ def convert(ctx, tiers, packs, target, dry_run, max_per_folder, group_by):
 @click.option("--dry-run", "-n", is_flag=True, help="Preview without writing files")
 @click.option("--max-per-folder", default=30, show_default=True, help="Max samples per leaf folder")
 @_group_by_option
+@_analyze_option
+@_bpm_threshold_option
+@_key_threshold_option
 @click.pass_context
-def convert_dir(ctx, source_dir, target, dry_run, max_per_folder, group_by):
+def convert_dir(ctx, source_dir, target, dry_run, max_per_folder, group_by, analyze, bpm_threshold, key_threshold):
     """Convert any WAV folder for SP-404 MkII import (generic mode)."""
     console: Console = ctx.obj["console"]
     source_path = Path(source_dir)
@@ -135,6 +166,9 @@ def convert_dir(ctx, source_dir, target, dry_run, max_per_folder, group_by):
         output_root=output_root,
         dry_run=dry_run,
         max_per_folder=max_per_folder,
+        analyze=analyze,
+        bpm_threshold=bpm_threshold,
+        key_threshold=key_threshold,
     )
 
     # Print summary
@@ -146,6 +180,7 @@ def convert_dir(ctx, source_dir, target, dry_run, max_per_folder, group_by):
         f"- Source: {source_path}\n"
         f"- Group by: {group_by}\n"
         f"- Max per folder: {max_per_folder}\n"
+        f"- Analyze: {analyze}\n"
         f"- Dry run: {dry_run}"
     )
     audit_path = write_audit_log(stats, output_root, config_summary)
@@ -315,8 +350,11 @@ def preview_dir(ctx, source_dir, max_per_folder, group_by):
 @click.option("--target", "-o", type=click.Path(), required=True, help="Output root directory")
 @click.option("--dry-run", "-n", is_flag=True, help="Preview without writing files")
 @click.option("--max-per-folder", default=200, show_default=True, help="Max samples per output folder")
+@_analyze_option
+@_bpm_threshold_option
+@_key_threshold_option
 @click.pass_context
-def convert_melody(ctx, source_dir, brand, pack_name, target, dry_run, max_per_folder):
+def convert_melody(ctx, source_dir, brand, pack_name, target, dry_run, max_per_folder, analyze, bpm_threshold, key_threshold):
     """Convert melody loops / musical content for SP-404 MkII import.
 
     Unlike convert-dir, this mode keeps stereo and does not trim silence.
@@ -348,6 +386,9 @@ def convert_melody(ctx, source_dir, brand, pack_name, target, dry_run, max_per_f
         output_root=output_root,
         dry_run=dry_run,
         max_per_folder=max_per_folder,
+        analyze=analyze,
+        bpm_threshold=bpm_threshold,
+        key_threshold=key_threshold,
     )
 
     print_summary(stats, console)
@@ -358,6 +399,182 @@ def convert_melody(ctx, source_dir, brand, pack_name, target, dry_run, max_per_f
         f"- Brand: {brand.upper()}\n"
         f"- Pack: {pack_name.upper()}\n"
         f"- Max per folder: {max_per_folder}\n"
+        f"- Analyze: {analyze}\n"
+        f"- Dry run: {dry_run}"
+    )
+    audit_path = write_audit_log(stats, output_root, config_summary)
+    console.print(f"[dim]Audit log: {audit_path}[/dim]")
+
+
+@main.command("list-presets")
+@click.pass_context
+def list_presets_cmd(ctx):
+    """Show available presets for the run command."""
+    console: Console = ctx.obj["console"]
+    presets = load_presets(_DEFAULT_PRESETS)
+
+    table = Table(title="Available Presets")
+    table.add_column("Preset", style="cyan bold")
+    table.add_column("Factory", style="green")
+    table.add_column("Description")
+    table.add_column("Key Settings", style="dim")
+
+    for name, p in presets.items():
+        settings = []
+        if p.tiers:
+            settings.append(f"tiers={p.tiers}")
+        if p.analyze:
+            settings.append("analyze")
+        settings.append(f"max={p.max_per_folder}")
+        table.add_row(name, p.factory, p.description, ", ".join(settings))
+
+    console.print(table)
+    console.print()
+    console.print("[dim]Usage: roland-converter run <preset> <source> -o <output>[/dim]")
+
+
+@main.command()
+@click.argument("preset_name")
+@click.argument("source_dir", required=False, type=click.Path(exists=True))
+@click.option("--target", "-o", type=click.Path(), required=True, help="Output root directory")
+@click.option("--dry-run", "-n", is_flag=True, help="Preview without writing files")
+@click.option("--brand", "-b", default=None, help="Brand name (melody presets)")
+@click.option("--name", "-N", "pack_name", default=None, help="Pack name override (melody presets)")
+@click.option("--max-per-folder", type=int, default=None, help="Override max samples per folder")
+@click.option("--analyze/--no-analyze", default=None, help="Override BPM/key detection")
+@click.option("--bpm-threshold", type=float, default=None, help="Override BPM confidence threshold")
+@click.option("--key-threshold", type=float, default=None, help="Override key confidence threshold")
+@click.option("--group-by", "-g", type=click.Choice(["type", "source"], case_sensitive=False), default=None)
+@click.option("--tiers", "-t", default=None, help="Override tiers (from-mars presets)")
+@click.pass_context
+def run(ctx, preset_name, source_dir, target, dry_run, brand, pack_name,
+        max_per_folder, analyze, bpm_threshold, key_threshold, group_by, tiers):
+    """Run a named preset. Presets bundle common flag combinations.
+
+    \b
+    Examples:
+      roland-converter run drums-tier1 -o E:\\ROLAND
+      roland-converter run melody-analyze E:\\Music\\Loops -o E:\\ROLAND -b CYMATICS
+      roland-converter run drums-generic E:\\Music\\Samples -o E:\\ROLAND
+    """
+    import re
+    config: Config = ctx.obj["config"]
+    console: Console = ctx.obj["console"]
+
+    presets = load_presets(_DEFAULT_PRESETS)
+    if preset_name not in presets:
+        console.print(f"[red]Unknown preset: {preset_name}[/red]")
+        console.print(f"Available: {', '.join(presets.keys())}")
+        raise SystemExit(1)
+
+    p = presets[preset_name]
+
+    # Apply overrides (CLI flags take precedence over preset defaults)
+    p_max = max_per_folder if max_per_folder is not None else p.max_per_folder
+    p_analyze = analyze if analyze is not None else p.analyze
+    p_bpm_thresh = bpm_threshold if bpm_threshold is not None else p.bpm_threshold
+    p_key_thresh = key_threshold if key_threshold is not None else p.key_threshold
+    p_group_by = group_by if group_by is not None else p.group_by
+    p_tiers = tiers if tiers is not None else p.tiers
+    p_brand = brand if brand is not None else p.brand
+
+    output_root = Path(target)
+
+    console.print(f"[bold]Preset:[/bold] {preset_name} ({p.description})")
+
+    if p.factory == "from-mars":
+        tier_list = [int(t.strip()) for t in p_tiers.split(",")]
+        selected_packs = get_packs_for_tiers(config, tier_list)
+
+        console.print(f"[bold]Source:[/bold] {config.source_root}")
+        console.print(f"[bold]Output:[/bold] {output_root}")
+        console.print(f"[bold]Packs:[/bold] {len(selected_packs)} selected")
+        if dry_run:
+            console.print("[yellow]DRY RUN - no files will be written[/yellow]")
+        console.print()
+
+        factory = FromMarsFactory(config=config, packs=selected_packs, group_by=p_group_by)
+        stats = run_pipeline(
+            factory=factory,
+            source_path=config.source_root,
+            output_root=output_root,
+            dry_run=dry_run,
+            max_per_folder=p_max,
+            analyze=p_analyze,
+            bpm_threshold=p_bpm_thresh,
+            key_threshold=p_key_thresh,
+        )
+
+    elif p.factory == "generic":
+        if not source_dir:
+            console.print("[red]Source directory required for generic preset[/red]")
+            raise SystemExit(1)
+        source_path = Path(source_dir)
+
+        console.print(f"[bold]Source:[/bold] {source_path}")
+        console.print(f"[bold]Output:[/bold] {output_root}")
+        if dry_run:
+            console.print("[yellow]DRY RUN - no files will be written[/yellow]")
+        console.print()
+
+        factory = GenericFactory(group_by=p_group_by)
+        stats = run_pipeline(
+            factory=factory,
+            source_path=source_path,
+            output_root=output_root,
+            dry_run=dry_run,
+            max_per_folder=p_max,
+            analyze=p_analyze,
+            bpm_threshold=p_bpm_thresh,
+            key_threshold=p_key_thresh,
+        )
+
+    elif p.factory == "melody":
+        if not source_dir:
+            console.print("[red]Source directory required for melody preset[/red]")
+            raise SystemExit(1)
+        source_path = Path(source_dir)
+
+        if not p_brand:
+            console.print("[red]Brand required for melody preset (use -b BRAND)[/red]")
+            raise SystemExit(1)
+
+        if not pack_name:
+            raw_name = source_path.name
+            raw_name = re.sub(r"^\d+[\s.\-]*", "", raw_name)
+            raw_name = re.sub(r"[\s_]*(Bundle|Pack|Kit|Samples?|Collection)$", "", raw_name, flags=re.I)
+            pack_name = raw_name.strip()
+
+        console.print(f"[bold]Source:[/bold] {source_path}")
+        console.print(f"[bold]Output:[/bold] {output_root}")
+        console.print(f"[bold]Mode:[/bold] Melody ({p_brand.upper()}/{pack_name.upper()})")
+        if dry_run:
+            console.print("[yellow]DRY RUN - no files will be written[/yellow]")
+        console.print()
+
+        factory = MelodyFactory(brand=p_brand, pack_name=pack_name)
+        stats = run_pipeline(
+            factory=factory,
+            source_path=source_path,
+            output_root=output_root,
+            dry_run=dry_run,
+            max_per_folder=p_max,
+            analyze=p_analyze,
+            bpm_threshold=p_bpm_thresh,
+            key_threshold=p_key_thresh,
+        )
+
+    else:
+        console.print(f"[red]Unknown factory in preset: {p.factory}[/red]")
+        raise SystemExit(1)
+
+    print_summary(stats, console)
+
+    config_summary = (
+        f"- Preset: {preset_name}\n"
+        f"- Factory: {p.factory}\n"
+        f"- Max per folder: {p_max}\n"
+        f"- Analyze: {p_analyze}\n"
         f"- Dry run: {dry_run}"
     )
     audit_path = write_audit_log(stats, output_root, config_summary)
